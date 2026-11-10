@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Visor CV </title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&display=swap');
+        
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: transparent;
+            overflow: hidden;
+        }
+
+        #viewer-area { width: 100%; height: 100vh; position: relative; }
+
+        .scoreboard-wrapper {
+            position: absolute; top: 20px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center;
+            opacity: 0; transition: opacity 0.5s ease;
+        }
+        .scoreboard-wrapper.visible { opacity: 1; }
+
+        .scoreboard-top-row { display: flex; align-items: flex-start; position: relative; z-index: 2; }
+
+        .scoreboard-main {
+            display: flex;
+            background: linear-gradient(180deg, #1a1a1a 0%, #000000 100%);
+            border-top: 4px solid #FFD700; border-bottom: 4px solid #FFD700;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            color: white; font-size: 40px; line-height: 1;
+            font-family: 'Teko', sans-serif;
+            overflow: hidden; position: relative;
+            width: 0; transition: width 1s ease-in-out; white-space: nowrap;
+        }
+
+        .scoreboard-wrapper.visible .scoreboard-main { width: 660px; }
+
+        .team-box {
+            width: 220px; text-align: center;
+            padding: 25px 15px 15px 15px;
+            position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+            box-sizing: border-box;
+        }
+
+        .penalty-dots {
+            position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+            display: flex; justify-content: center; gap: 8px; opacity: 0; transition: opacity 0.3s;
+        }
+        .penalty-dots.active { opacity: 1; }
+        
+        .dot {
+            width: 16px; height: 16px; border-radius: 50%;
+            border: 2px solid #888; background-color: rgba(0,0,0,0.5);
+            box-sizing: border-box; transition: all 0.3s;
+        }
+        .dot.hit { background-color: #28a745; border-color: #28a745; box-shadow: 0 0 5px #28a745; } 
+        .dot.miss { background-color: #dc3545; border-color: #dc3545; box-shadow: 0 0 5px #dc3545; } 
+
+        .score-box {
+            width: 100px; text-align: center; padding: 10px;
+            background-color: #222; font-weight: 700; letter-spacing: 2px;
+            border-left: 1px solid #333; border-right: 1px solid #333;
+            display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+        }
+
+        .time-box {
+            width: 120px; text-align: center; padding: 5px 10px;
+            background-color: #111; color: #ddd;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-sizing: border-box; position: relative;
+        }
+        
+        .match-period { font-size: 16px; color: #FFD700; line-height: 1; margin-bottom: -2px; letter-spacing: 1px; }
+        .time-display-container { display: flex; align-items: baseline; justify-content: center; }
+        .added-time { font-size: 22px; color: #FFD700; margin-left: 5px; }
+
+        .team-color-line { position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; }
+
+        .goal-overlay {
+            position: absolute; bottom: 0; height: 0%; width: 100%;
+            background-color: red; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 50px; font-weight: bold; color: white;
+            overflow: hidden; transition: height 0.5s ease, transform 0.5s ease 1.5s, opacity 0.5s ease 2.5s;
+        }
+        .goal-overlay.active-t1 { height: 100%; transform: translateX(100%); }
+        .goal-overlay.active-t2 { height: 100%; transform: translateX(-100%); }
+
+        .event-menu-mask { position: absolute; top: 100%; left: 0; width: 660px; overflow: hidden; z-index: 1; }
+        .event-menu {
+            width: 100%; background-color: rgba(0, 0, 0, 0.85); color: white;
+            border-bottom: 3px solid #FFD700; display: flex; align-items: center;
+            padding: 15px 20px; box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif; font-size: 20px;
+            transform: translateY(-100%); transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .event-menu.visible { transform: translateY(0); }
+
+        .event-content { display: flex; width: 100%; align-items: center; }
+        .player-info { display: flex; align-items: center; width: 100%; }
+        .player-num { font-weight: bold; margin-right: 10px; font-size: 24px; color: #FFD700; font-family: 'Teko', sans-serif;}
+        .player-name { flex-grow: 1; text-transform: uppercase; }
+
+        .card-icon { width: 25px; height: 35px; border-radius: 3px; margin-right: 15px; box-shadow: 1px 1px 5px rgba(0,0,0,0.5); }
+        .card-yellow { background-color: #FFD700; }
+        .card-red { background-color: #FF0000; }
+        
+        .double-yellow-container { position: relative; width: 40px; height: 35px; margin-right: 15px; }
+        .card-dy1, .card-dy2 { position: absolute; width: 25px; height: 35px; border-radius: 3px; box-shadow: 1px 1px 4px rgba(0,0,0,0.5); }
+        .fuse-anim .card-dy1 { animation: fuseLeft 2s forwards ease-in-out; }
+        .fuse-anim .card-dy2 { animation: fuseRight 2s forwards ease-in-out; }
+
+        @keyframes fuseLeft {
+            0% { left: -10px; transform: rotate(-15deg); background-color: #FFD700; }
+            40% { left: -10px; transform: rotate(-15deg); background-color: #FFD700; }
+            70% { left: 7px; transform: rotate(0deg); background-color: #FFD700; }
+            100% { left: 7px; transform: rotate(0deg); background-color: #FF0000; }
+        }
+        @keyframes fuseRight {
+            0% { right: -10px; transform: rotate(15deg); background-color: #FFD700; }
+            40% { right: -10px; transform: rotate(15deg); background-color: #FFD700; }
+            70% { right: 7px; transform: rotate(0deg); background-color: #FFD700; }
+            100% { right: 7px; transform: rotate(0deg); background-color: #FF0000; }
+        }
+
+        @keyframes arrowBounceOut { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+        @keyframes arrowBounceIn { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .sub-arrow { font-size: 24px; font-weight: bold; margin-right: 10px; display: inline-block;}
+        .sub-out .sub-arrow { color: #FF4444; animation: arrowBounceOut 1s infinite ease-in-out; }
+        .sub-in .sub-arrow { color: #44FF44; animation: arrowBounceIn 1s infinite ease-in-out; }
+        .sub-row { display: flex; width: 50%; align-items: center; }
+
+        .hidden { display: none !important; }
+    </style>
+    <!-- Servidor de comunicación remota ultrarrápido -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <div id="viewer-area">
+        <div class="scoreboard-wrapper" id="scoreboard">
+            <div class="scoreboard-top-row">
+                <div class="scoreboard-main">
+                    <div class="goal-overlay" id="goal-anim">¡GOAL!</div>
+                    
+                    <div class="team-box" id="v-team1-box">
+                        <div class="penalty-dots" id="v-pen-t1">
+                            <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        </div>
+                        <span id="v-team1-name">TEAM 1</span>
+                        <div class="team-color-line" id="v-team1-line" style="background-color: #0000FF;"></div>
+                    </div>
+                    
+                    <div class="score-box">
+                        <span id="v-score1">0</span> - <span id="v-score2">0</span>
+                    </div>
+                    
+                    <div class="team-box" id="v-team2-box">
+                        <div class="penalty-dots" id="v-pen-t2">
+                            <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        </div>
+                        <span id="v-team2-name">TEAM 2</span>
+                        <div class="team-color-line" id="v-team2-line" style="background-color: #FF0000;"></div>
+                    </div>
+
+                    <div class="time-box">
+                        <div id="v-period" class="match-period">1T</div>
+                        <div class="time-display-container">
+                            <span id="v-time">00:00</span>
+                            <span id="v-added-time" class="added-time hidden">+0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="event-menu-mask">
+                    <div class="event-menu" id="v-event-menu">
+                        <div class="event-content" id="v-event-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Crear conexión receptora con ID fijo para tu transmisión
+        const peer = new Peer('cablevega-match-live');
+
+        peer.on('connection', (conn) => {
+            conn.on('data', (data) => {
+                processData(data);
+            });
+        });
+
+        function processData(data) {
+            if (data.type === 'UPDATE_BOARD') {
+                document.getElementById('v-team1-name').innerText = data.t1Name;
+                document.getElementById('v-team2-name').innerText = data.t2Name;
+                document.getElementById('v-team1-line').style.backgroundColor = data.t1Color;
+                document.getElementById('v-team2-line').style.backgroundColor = data.t2Color;
+                document.getElementById('v-score1').innerText = data.score1;
+                document.getElementById('v-score2').innerText = data.score2;
+                document.getElementById('v-period').innerText = data.period;
+                document.getElementById('v-time').innerText = data.time;
+                
+                const addedUI = document.getElementById('v-added-time');
+                if (data.addedTime > 0) {
+                    addedUI.innerText = "+" + data.addedTime;
+                    addedUI.classList.remove('hidden');
+                } else {
+                    addedUI.classList.add('hidden');
+                }
+            }
+            else if (data.type === 'TOGGLE_BOARD') {
+                const board = document.getElementById('scoreboard');
+                if (data.visible) board.classList.add('visible');
+                else board.classList.remove('visible');
+            }
+            else if (data.type === 'GOAL_ANIM') {
+                triggerGoalAnimation(data.team, data.color);
+            }
+            else if (data.type === 'TOGGLE_EVENT') {
+                const menu = document.getElementById('v-event-menu');
+                const content = document.getElementById('v-event-content');
+                if (data.visible) {
+                    content.innerHTML = data.html;
+                    menu.classList.add('visible');
+                } else {
+                    menu.classList.remove('visible');
+                }
+            }
+            else if (data.type === 'TOGGLE_PENALTIES') {
+                const p1 = document.getElementById('v-pen-t1');
+                const p2 = document.getElementById('v-pen-t2');
+                if (data.visible) { p1.classList.add('active'); p2.classList.add('active'); }
+                else { p1.classList.remove('active'); p2.classList.remove('active'); }
+            }
+            else if (data.type === 'UPDATE_PENALTIES') {
+                const dots = document.getElementById(data.team === 1 ? 'v-pen-t1' : 'v-pen-t2').children;
+                for (let i = 0; i < 5; i++) {
+                    dots[i].className = 'dot';
+                    if (data.dots[i] !== 'pending') dots[i].classList.add(data.dots[i]);
+                }
+            }
+        }
+
+        function triggerGoalAnimation(team, color) {
+            const overlay = document.getElementById('goal-anim');
+            overlay.className = 'goal-overlay';
+            overlay.style.transition = 'none'; overlay.style.opacity = '1';
+            void overlay.offsetWidth; 
+            overlay.style.transition = 'height 0.5s ease, transform 0.5s ease 1.5s, opacity 0.5s ease 2.5s';
+            overlay.style.backgroundColor = color;
+            overlay.classList.add(team === 1 ? 'active-t1' : 'active-t2');
+
+            setTimeout(() => { overlay.style.opacity = '0'; setTimeout(() => { overlay.className = 'goal-overlay'; }, 500); }, 3000);
+        }
+    </script>
+</body>
+</html>
